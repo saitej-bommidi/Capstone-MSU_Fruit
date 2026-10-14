@@ -50,15 +50,16 @@ Colab disconnects after a while. Everything is on Drive, so **Run all** again pi
 
 You need an HPCC account. A faculty member (Dr. Bunting, or the course instructor) sponsors it at <https://contact.icer.msu.edu/account>.
 
-**One-time setup** (10–20 min). Open a terminal on the HPCC: `ssh <netid>@hpcc.msu.edu`, or the shell in OnDemand (<https://ondemand.hpcc.msu.edu>, *Clusters* menu). Then:
+**One-time setup** (10–20 min). Open a terminal on the HPCC: `ssh <netid>@hpcc.msu.edu`, or the shell in OnDemand (<https://ondemand.hpcc.msu.edu>, *Clusters* menu). Then move to a development node (dev nodes have internet, compute nodes may not), get the code and run the setup script. The script builds the conda environment, fetches Meta's SAM 2 code and the weights, and registers a Jupyter kernel:
 
 ```bash
-ssh dev-amd20-v100                 # a development node: these have internet, compute nodes may not
+ssh dev-amd20-v100
 git clone https://github.com/moehocbaidi/Capstone-MSU_Fruit.git ~/Capstone-MSU_Fruit
 cd ~/Capstone-MSU_Fruit/sam2_pipeline
-nano hpcc/config.sh                # optional: change PROJECT_DIR (default ~/msu_fruit_project) or SAM2_SIZE
-bash hpcc/setup_env.sh             # conda env, SAM 2 code, weights, Jupyter kernel
+bash hpcc/setup_env.sh
 ```
+
+Optional, before running `setup_env.sh`: edit `hpcc/config.sh` (`nano hpcc/config.sh`) to keep the project somewhere other than `~/msu_fruit_project` (`PROJECT_DIR`) or to change the default model size (`SAM2_SIZE`).
 
 **Get videos onto the HPCC**, into `~/msu_fruit_project/videos/`, in one of these ways:
 - **OnDemand**: *Files ▸ Home Directory ▸ msu_fruit_project ▸ videos ▸ Upload*. Best for files under about 1 GB.
@@ -76,15 +77,18 @@ bash hpcc/setup_env.sh             # conda env, SAM 2 code, weights, Jupyter ker
 4. In cell A, untick `DEMO` and set `PROJECT_DIR = "~/msu_fruit_project"`.
 5. Run cell A, cell B and the Tools cells, skip Steps 1–2 (already done), and label in Step 3.
 
-**Train, score and run as batch jobs**, submitted from the `sam2_pipeline` folder:
+**Train, score and run as batch jobs**, submitted from the `sam2_pipeline` folder. First fine-tune SAM 2.1, which saves `models/sam2.1_base_plus_grapes_v1.pt`:
 
 ```bash
 cd ~/Capstone-MSU_Fruit/sam2_pipeline
-sbatch hpcc/run.sb train --run grapes_v1 --steps 3000          # fine-tune SAM 2.1  → models/sam2.1_base_plus_grapes_v1.pt
-sbatch hpcc/run.sb evaluate                                    # leaderboard → results/leaderboard_val.csv
+sbatch hpcc/run.sb train --run grapes_v1 --steps 3000
+```
+
+`squeue --me` shows whether your jobs are running, and `tail -f fruit-<jobid>.out` follows a job's log (`<jobid>` is the number `sbatch` printed). When training has finished, score every model (the leaderboard goes to `results/leaderboard_val.csv`) and run the fine-tuned model on one minute of new video:
+
+```bash
+sbatch hpcc/run.sb evaluate
 sbatch hpcc/run.sb video videos/row3.mp4 --start 60 --seconds 60 --weights models/sam2.1_base_plus_grapes_v1.pt
-squeue --me                                                    # is it running?
-tail -f fruit-<jobid>.out                                      # follow the log
 ```
 
 `run.sb` asks for one A100 for 4 hours. Change it per job, e.g. `sbatch --gpus=v100:1 --time=02:00:00 hpcc/run.sb evaluate`. The GPU types are v100/v100s (32 GB), a100 (40 or 80 GB), l40s (48 GB) and h200 (141 GB). Any of them works: training sizes itself to the card. It freezes the image backbone below 38 GB, trains in float16 on V100s and bfloat16 on the newer cards, and steps down frames per sample if memory runs out. Keep jobs at 4 hours or less so they can also use buy-in nodes. A run that hits the time limit resumes when you submit the same command again, on the same GPU type (a different type changes the training settings, so the run starts over).
@@ -97,11 +101,24 @@ Options that apply to every command go *before* the command name: `sbatch hpcc/r
 
 ## 3. Labels you already have (Roboflow, CVAT, Label Studio, YOLO)
 
+Import a COCO export (outlines or boxes):
+
 ```bash
-python fruit.py import-coco export/train/_annotations.coco.json      # COCO segmentation export
-python fruit.py import-yolo export/train/images export/train/labels  # YOLO .txt (outlines or boxes)
-python fruit.py approve --all-drafts                                 # accept SAM-drawn masks without checking
+python fruit.py import-coco export/train/_annotations.coco.json
 ```
+
+or YOLO `.txt` labels (outlines or boxes):
+
+```bash
+python fruit.py import-yolo export/train/images export/train/labels
+```
+
+Masks that SAM 2.1 drew from boxes come in as drafts (see below). To accept them all without checking:
+
+```bash
+python fruit.py approve --all-drafts
+```
+
 On the HPCC, run `source hpcc/activate.sh` first. Elsewhere, name the project before the command: `python fruit.py --project ../data/msu_fruit_project import-coco …`. In the notebook, the same tools are `import_coco(...)` and `import_yolo_seg(...)` (Appendix A).
 
 - **Outlines** (polygons or masks) are used as they are.
@@ -144,6 +161,8 @@ On a CPU-only Linux machine (Python 3.13, PyTorch 2.14, SAM 2 code at commit `2b
 - metrics, which agree exactly with Meta's SA-V/DAVIS evaluator on 965 object-frames;
 - the install test and Meta's trainer under the package versions Colab ships today (PyTorch 2.11, NumPy 2.1, ipywidgets 7);
 - `demo.ipynb` at the repository root, run as a grader would.
+
+The install test and `demo.ipynb` also ran on a Mac with Apple Silicon.
 
 **Not tested:** anything on a GPU, Colab itself, and the HPCC itself (`setup_env.sh`, `run.sb`, OnDemand). These scripts follow ICER's documentation as of October 2026. The SAM 3.1 adapter was not run either. Run the Colab demo once, and on the HPCC start with a 30-minute smoke test before a long job: `sbatch --time=00:30:00 hpcc/run.sb --size tiny train --run smoke --steps 20`.
 

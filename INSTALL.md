@@ -13,7 +13,7 @@ These steps install the software, test the install, get the data and run the dem
 - **Linux, macOS on Apple Silicon (M1–M4), or Windows**; no GPU needed.
   - **Intel Macs** cannot install a recent enough PyTorch; use the Colab link above.
   - **On Windows**, run the commands below in the *Miniforge Prompt* (or *Anaconda Prompt*). Meta recommends WSL (Ubuntu) for SAM 2 on Windows; if anything fails natively, use WSL or the Colab link.
-  - **Tested so far:** these steps were tested on Linux; macOS and Windows are expected to work but have not been run yet.
+  - **Tested so far:** these steps were tested on Linux and on macOS (Apple Silicon). Windows is expected to work but has not been run yet.
 
 ## 2. Get the code
 

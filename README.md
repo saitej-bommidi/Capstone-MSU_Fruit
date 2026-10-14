@@ -13,9 +13,11 @@ The project will initially focus on fruit detection and counting, with the goal 
 ```bash
 git clone https://github.com/moehocbaidi/Capstone-MSU_Fruit.git && cd Capstone-MSU_Fruit
 conda env create --prefix ./envs --file environment.yml && conda activate ./envs
-python tests/test_install.py          # prints INSTALL OK
-jupyter notebook                      # open demo.ipynb, Run All (5–10 min on a laptop CPU)
+python tests/test_install.py
+jupyter notebook
 ```
+
+The test ends with `INSTALL OK`. In Jupyter, open `demo.ipynb` and choose *Run ▸ Run All Cells*. It takes 5–10 minutes on a laptop CPU.
 
 No install: open [demo.ipynb in Google Colab](https://colab.research.google.com/github/moehocbaidi/Capstone-MSU_Fruit/blob/main/demo.ipynb).
 
